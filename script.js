@@ -234,7 +234,11 @@ async function updateAll() {
     showNext();
   }
 }
+async function updateQuake(){
+  await fetchEarthquake();
+}
 
 
 updateAll();
 setInterval(updateAll, 5 * 60 * 1000);
+setInterval(updateQuake, 1000)
