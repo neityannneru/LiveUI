@@ -1,3 +1,4 @@
+#styles.css
 html, body {
   margin: 0;
   padding: 0;
@@ -48,4 +49,34 @@ html, body {
   bottom: 2px;
   right: 0px;
   user-select: none;
+}
+
+.quake-alert {
+  width: 15px;
+  height: 30px;
+  background-color: #ff0000;
+  margin-right: 10px;
+  animation: blink 1s infinite;
+  visibility: hidden;
+
+  /* 余白を背景色で囲む */
+  padding: 2px; /* 余白の大きさ */
+  box-sizing: content-box; /* paddingは外側に追加 */
+  background-clip: padding-box;
+
+  /* 余白部分の色を背景色に */
+  box-shadow: 0 0 0 4px #020418; /* テロップ背景色と同じ */
+  border-radius: 2px; /* 少し角丸で見栄えよく */
+}
+
+
+
+
+@keyframes blink {
+  0%, 50%, 100% {
+    opacity: 1;
+  }
+  25%, 75% {
+    opacity: 0;
+  }
 }
