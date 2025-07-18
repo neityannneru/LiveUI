@@ -10,8 +10,8 @@ let animationId = null;
 
 // ✅ スクロール速度（ピクセル/秒）を個別に設定
 const scrollSpeeds = {
-  weather: 400,
-  "news-desc": 300
+  weather: 180,
+  "news-desc": 160
 };
 
 // 時計表示
