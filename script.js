@@ -1,149 +1,129 @@
-const ticker = document.getElementById("ticker");
-const wrapper = document.querySelector(".ticker-wrapper");
-const clock = document.getElementById("clock");
+document.addEventListener("DOMContentLoaded", () => {
+  const ticker = document.getElementById("ticker");
+  const wrapper = document.querySelector(".ticker-wrapper");
+  const clock = document.getElementById("clock");
+  const weatherSlider = document.getElementById("weatherSlider");
+  const newsSlider = document.getElementById("newsSlider");
 
-let weatherHTMLs = [];
-let newsItems = []; // { title, description }
-let combinedItems = []; // { type, content }
-let currentIndex = 0;
-let animationId = null;
+  let weatherItems = [];
+  let newsItems = [];
+  let combined = [];
+  let idx = 0;
+  let anim = null;
 
-// ✅ スクロール速度（ピクセル/秒）を個別に設定
-const scrollSpeeds = {
-  weather: 180,
-  "news-desc": 160
-};
+  const speeds = {
+    weather: Number(weatherSlider.value),
+    "news-desc": Number(newsSlider.value)
+  };
 
-// 時計表示
-function updateClock() {
-  const now = new Date();
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mm = String(now.getMinutes()).padStart(2, "0");
-  const ss = String(now.getSeconds()).padStart(2, "0");
-  clock.textContent = `│${hh}:${mm}:${ss}│`;
-}
-setInterval(updateClock, 1000);
-updateClock();
+  weatherSlider.addEventListener("input", () => speeds.weather = Number(weatherSlider.value));
+  newsSlider.addEventListener("input", () => speeds["news-desc"] = Number(newsSlider.value));
 
-// 天気取得
-async function fetchWeather() {
-  try {
-    const res = await fetch("https://weathernews.jp/forecast/xml/all.xml");
-    const xml = await res.text();
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(xml, "text/xml");
-    const points = Array.from(xmlDoc.getElementsByTagName("point"));
+  function updateClock() {
+    const now = new Date();
+    clock.textContent = `│${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}│`;
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
 
-    const unique = {};
-    points.forEach(point => {
-      const id = point.getAttribute("id");
-      if (!unique[id]) {
-        const name = point.getAttribute("name");
-        const weatherRaw = point.getElementsByTagName("weather")[0]?.textContent || "";
-        const first = weatherRaw.split(",")[0];
-        const icon = `https://weathernews.jp/s/topics/img/wxicon/${first}.png`;
-        const html = `<img src="${icon}" alt="icon"><span>${name}</span>`;
-        unique[id] = html;
+  async function fetchWeather() {
+    try {
+      const res = await fetch("https://weathernews.jp/forecast/xml/all.xml");
+      const xml = await res.text();
+      const doc = new DOMParser().parseFromString(xml, "application/xml");
+      const pts = Array.from(doc.getElementsByTagName("point"));
+      const uniq = {};
+      pts.forEach(p => {
+        const id = p.getAttribute("id");
+        if (!uniq[id]) {
+          const n = p.getAttribute("name");
+          const w = p.getElementsByTagName("weather")[0]?.textContent.split(",")[0] || "";
+          const u = `https://weathernews.jp/s/topics/img/wxicon/${w}.png`;
+          uniq[id] = `<img src="${u}"/><span>${n}</span>`;
+        }
+      });
+      weatherItems = Object.values(uniq);
+    } catch {
+      weatherItems = ['<span style="color:red;">天気取得エラー</span>'];
+    }
+  }
+
+  async function fetchNews() {
+    try {
+      const urls = [
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.nhk.or.jp/rss/news/cat0.xml",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.nhk.or.jp/rss/news/cat1.xml"
+      ];
+      const arr = [];
+      for (const u of urls) {
+        const j = await (await fetch(u)).json();
+        if (j.items) arr.push(...j.items.map(i => ({ title: i.title, description: i.description })));
       }
+      newsItems = arr;
+    } catch {
+      newsItems = [{ title: "ニュース取得エラー", description: "" }];
+    }
+  }
+
+  function build() {
+    combined = [{ type: "weather", content: weatherItems.join("　") }];
+    newsItems.forEach(n => {
+      combined.push({ type: "news-desc", title: n.title, description: n.description });
     });
-
-    weatherHTMLs = Object.values(unique);
-  } catch (e) {
-    console.error("天気取得エラー", e);
-    weatherHTMLs = ["<span>天気取得エラー</span>"];
-  }
-}
-
-// ニュース取得（RSS）
-async function fetchNews() {
-  try {
-    const urls = [
-      "https://api.rss2json.com/v1/api.json?rss_url=https://www.nhk.or.jp/rss/news/cat0.xml",
-      "https://api.rss2json.com/v1/api.json?rss_url=https://www.nhk.or.jp/rss/news/cat1.xml"
-    ];
-
-    let all = [];
-    for (const url of urls) {
-      const res = await fetch(url);
-      const json = await res.json();
-      if (json.items) {
-        all = all.concat(json.items.map(i => ({ title: i.title, description: i.description })));
-      }
-    }
-
-    newsItems = all;
-  } catch (e) {
-    console.error("ニュース取得エラー", e);
-    newsItems = [{ title: "ニュース取得失敗", description: "" }];
-  }
-}
-
-// 表示データを構成
-function updateCombinedItems() {
-  const weather = weatherHTMLs.join("　");
-  combinedItems = [{ type: "weather", content: weather }];
-  newsItems.forEach(n => {
-    combinedItems.push({ type: "news-title", content: n.title });
-    combinedItems.push({ type: "news-desc", content: n.description });
-  });
-}
-
-// アニメーション処理
-function showNext() {
-  const item = combinedItems[currentIndex];
-  ticker.style.transition = "none";
-  ticker.style.opacity = 1;
-
-  if (item.type === "weather" || item.type === "news-desc") {
-    ticker.innerHTML = item.content;
-    ticker.style.left = wrapper.offsetWidth + "px";
-    let posX = wrapper.offsetWidth;
-    const fps = 60;
-    const speed = scrollSpeeds[item.type] || 60;
-
-    function animate() {
-      const step = speed / fps;
-      posX -= step;
-      ticker.style.left = `${posX}px`;
-
-      if (posX + ticker.offsetWidth < 0) {
-        currentIndex = (currentIndex + 1) % combinedItems.length;
-        showNext();
-      } else {
-        animationId = requestAnimationFrame(animate);
-      }
-    }
-    animationId = requestAnimationFrame(animate);
   }
 
-  else if (item.type === "news-title") {
-    ticker.textContent = item.content;
-    ticker.style.left = "10px";
+  function next() {
+    if (anim) cancelAnimationFrame(anim);
+    if (idx >= combined.length) idx = 0;
+
+    const it = combined[idx];
     ticker.style.transition = "none";
     ticker.style.opacity = 1;
 
-    setTimeout(() => {
-      ticker.style.transition = "opacity 1s";
-      ticker.style.opacity = 0;
-      setTimeout(() => {
-        currentIndex = (currentIndex + 1) % combinedItems.length;
-        showNext();
-      }, 1500);
-    }, 800);
+    if (it.type === "weather") {
+      ticker.innerHTML = it.content;
+      scroll("weather", () => {
+        idx++;
+        next();
+      });
+    } else if (it.type === "news-desc") {
+      ticker.innerHTML = `<span style="font-weight:bold; color:#FFD700;">${it.title}</span>　<span>${it.description}</span>`;
+      scroll("news-desc", () => {
+        idx++;
+        next();
+      });
+    }
   }
-}
 
-// 初回だけstartTickerを実行
-let started = false;
-async function updateAll() {
-  await fetchWeather();
-  await fetchNews();
-  updateCombinedItems();
-  if (!started) {
-    started = true;
-    showNext();
+  function scroll(type, done) {
+    ticker.style.left = wrapper.offsetWidth + "px";
+    let x = wrapper.offsetWidth;
+    const fps = 60;
+
+    function frame() {
+      const currentSpeed = speeds[type];
+      x -= currentSpeed / fps;
+      ticker.style.left = `${x}px`;
+      if (x + ticker.offsetWidth < 0) {
+        done();
+      } else {
+        anim = requestAnimationFrame(frame);
+      }
+    }
+    anim = requestAnimationFrame(frame);
   }
-}
 
-updateAll();
-setInterval(updateAll, 5 * 60 * 1000);
+  async function startAll() {
+    await fetchWeather();
+    await fetchNews();
+    build();
+    next();
+    setInterval(async () => {
+      await fetchWeather();
+      await fetchNews();
+      build();
+    }, 300000); // 5分更新
+  }
+
+  startAll();
+});
